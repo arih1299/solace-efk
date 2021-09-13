@@ -1,0 +1,87 @@
+version: "3"
+services:
+  # web:
+  #   image: httpd
+  #   ports:
+  #     - "80:80"
+  #   links:
+  #     - fluentd
+  #   logging:
+  #     driver: "fluentd"
+  #     options:
+  #       fluentd-address: localhost:24224
+  #       tag: httpd.access
+
+  solace:
+    container_name: solacedemo
+    image: solace/solace-pubsub-standard:latest
+    shm_size: 1g
+    ulimits:
+      core: 1
+      nofile:
+        soft: 2448
+        hard: 6592
+    ports:
+      #Web transport
+      - '8008:8008'
+      #MQTT Default VPN
+      - '1883:1883'
+      #MQTT Default VPN over WebSockets
+      - '8000:8000'
+      #SEMP / PubSub+ Manager
+      - '8080:8080'
+      #REST Default VPN
+      - '9000:9000'
+      #SMF
+      # - '55555:55555'
+      - '5555:55555' # 55555 is reserved in Big Sur macOS
+      #SSH connection to CLI
+      - '2222:2222'
+    environment:
+      - username_admin_globalaccesslevel=admin
+      - username_admin_password=admin
+      # my additional flags for logging
+      - logging_event_output=all
+      - logging_event_format=graylog
+      - logging_debug_output=all
+      - logging_debug_format=graylog
+      - logging_command_output=all
+      - logging_command_format=graylog
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: solace
+    depends_on:
+      - fluentd
+
+
+  fluentd:
+    build: ./fluentd
+    container_name: fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    links:
+      - "elasticsearch"
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    depends_on:
+      - elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.1
+    container_name: elasticsearch
+    environment:
+      - "discovery.type=single-node"
+    expose:
+      - "9200"
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.13.1
+    links:
+      - "elasticsearch"
+    ports:
+      - "5601:5601"
